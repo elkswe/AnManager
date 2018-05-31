@@ -2,42 +2,42 @@
 
 FileInfo::FileInfo(QObject *parent) : QAbstractTableModel(parent)
 {
-    path path(L"/home/elkswe");
+//    path path(L"/home/elkswe");
 
 
-    for(directory_entry entry
-        : directory_iterator(path))
-    {
-        try
-        {
-            FileData file;
-            file[NAME] = QString::fromStdWString(entry.path().filename().wstring());
-            QString fileSize;
-            if(is_directory(entry.path()))
-            {
-                fileSize = "<DIR>";
-            }
-            else
-            {
-                fileSize = QString::number(file_size(entry.path())/1024) + " KB";
-            }
-            file[SIZE] =  fileSize;
-            file[DATE] = QString::fromStdWString(
-                        pt::to_simple_wstring(
-                            pt::from_time_t(
-                                last_write_time(entry.path()))));
+//    for(directory_entry entry
+//        : directory_iterator(path))
+//    {
+//        try
+//        {
+//            FileData file;
+//            file[NAME] = QString::fromStdWString(entry.path().filename().wstring());
+//            QString fileSize;
+//            if(is_directory(entry.path()))
+//            {
+//                fileSize = "<DIR>";
+//            }
+//            else
+//            {
+//                fileSize = QString::number(file_size(entry.path())/1024) + " KB";
+//            }
+//            file[SIZE] =  fileSize;
+//            file[DATE] = QString::fromStdWString(
+//                        pt::to_simple_wstring(
+//                            pt::from_time_t(
+//                                last_write_time(entry.path()))));
 
 
-            int row = m_files.count();
-            this->beginInsertRows(QModelIndex(), row, row);
-            m_files.append(file);
-            this->endInsertRows();
-        } catch (filesystem_error & ex){
-            std::cout << ex.what() << std::endl;
-        }
-    }
-    qSort(m_files.begin(), m_files.end(), FileInfo::lessThan);
+//            int row = m_files.count();
+//            this->beginInsertRows(QModelIndex(), row, row);
+//            m_files.append(file);
+//            this->endInsertRows();
+//        } catch (filesystem_error & ex){
+//            std::cout << ex.what() << std::endl;
+//        }
+//    }
 
+//    qSort(m_files.begin(), m_files.end(), FileInfo::lessThan);
 }
 
 int FileInfo::rowCount(const QModelIndex &parent) const
