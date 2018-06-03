@@ -20,7 +20,7 @@ public:
 	~DiskButton();
 
 signals:
-	void diskClicked(path & path);
+    void diskClicked(const path & path);
 
 	public slots:
 	void resendSignal();

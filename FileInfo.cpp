@@ -1,43 +1,7 @@
-#include "fileinfo.h"
+#include "FileInfo.h"
 
 FileInfo::FileInfo(QObject *parent) : QAbstractTableModel(parent)
 {
-//    path path(L"/home/elkswe");
-
-
-//    for(directory_entry entry
-//        : directory_iterator(path))
-//    {
-//        try
-//        {
-//            FileData file;
-//            file[NAME] = QString::fromStdWString(entry.path().filename().wstring());
-//            QString fileSize;
-//            if(is_directory(entry.path()))
-//            {
-//                fileSize = "<DIR>";
-//            }
-//            else
-//            {
-//                fileSize = QString::number(file_size(entry.path())/1024) + " KB";
-//            }
-//            file[SIZE] =  fileSize;
-//            file[DATE] = QString::fromStdWString(
-//                        pt::to_simple_wstring(
-//                            pt::from_time_t(
-//                                last_write_time(entry.path()))));
-
-
-//            int row = m_files.count();
-//            this->beginInsertRows(QModelIndex(), row, row);
-//            m_files.append(file);
-//            this->endInsertRows();
-//        } catch (filesystem_error & ex){
-//            std::cout << ex.what() << std::endl;
-//        }
-//    }
-
-//    qSort(m_files.begin(), m_files.end(), FileInfo::lessThan);
 }
 
 int FileInfo::rowCount(const QModelIndex &parent) const
@@ -72,7 +36,7 @@ bool FileInfo::setData(const QModelIndex &index, const QString &value, int role)
     }
 
     m_files[index.row()][Column(index.column())] = value;
-    //emit dataChanged( index, index );
+    emit dataChanged( index, index );
 
     return true;
 }
@@ -84,18 +48,18 @@ QVariant FileInfo::headerData(int section, Qt::Orientation orientation, int role
         return QVariant();
     }
 
-    if(orientation  == Qt::Vertical)
+    if(orientation == Qt::Vertical)
     {
         return section;
     }
 
     switch (section) {
     case NAME:
-        return trUtf8("Name");
+        return "Name";
     case SIZE:
-        return trUtf8("Size");
+        return "Size";
     case DATE:
-        return trUtf8("Date");
+        return "Date";
     }
 
     return QVariant();
@@ -110,6 +74,42 @@ Qt::ItemFlags FileInfo::flags(const QModelIndex &index) const
     }
 
     return flags;
+}
+
+void FileInfo::appendData(FileInfo::FileData &file)
+{
+    int row = m_files.count();
+    this->beginInsertRows(QModelIndex(), row, row);
+    m_files.append(file);
+    this->endInsertRows();
+}
+
+void FileInfo::resetData(FileInfo::Files &files)
+{
+    this->beginResetModel();
+    this->m_files.clear();
+    this->m_files = files;
+    this->endResetModel();
+}
+
+void FileInfo::prependData(FileInfo::FileData &file)
+{
+    int row = m_files.count();
+    this->beginInsertRows(QModelIndex(), 0, 0);
+    m_files.prepend(file);
+    this->endInsertRows();
+}
+
+void FileInfo::sort()
+{
+    qSort(m_files.begin(), m_files.end(), lessThan);
+}
+
+void FileInfo::clear_data()
+{
+    this->beginResetModel();
+    this->m_files.clear();
+    this->endResetModel();
 }
 
 bool FileInfo::lessThan(const QHash<FileInfo::Column, QString> &fd1, const QHash<FileInfo::Column, QString> &fd2)

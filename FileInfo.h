@@ -21,12 +21,6 @@ public:
     QVariant headerData(int section, Qt::Orientation orientation, int role) const;
     Qt::ItemFlags flags(const QModelIndex &index) const;
 
-    //My methods
-
-
-public slots:
-
-private:
     enum Column {
         NAME = 0,
         SIZE,
@@ -36,11 +30,20 @@ private:
 
     typedef QHash< Column, QString> FileData;
     typedef QList< FileData > Files;
+
+    //My methods
+    void appendData(FileData & file);
+    void resetData(Files & files);
+    void prependData(FileData & file);
+    void sort();
+    void clear_data();
+    static bool lessThan(const QHash< Column, QString> &fd1, const QHash< Column, QString> &fd2);
+
+private:
     Files m_files;
 
-public:
-    //My methods
-    static bool lessThan(const QHash< Column, QString> &fd1, const QHash< Column, QString> &fd2);
+public slots:
+
 };
 
 #endif // FILEINFO_H
