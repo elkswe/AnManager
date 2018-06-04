@@ -3,13 +3,9 @@
 
 #include <QMainWindow>
 #include <QMessageBox>
-#include <fileinfo.h>
+#include <FileInfo.h>
 #include <DiskButton.h>
-
-#define KB 1024
-#define MB (KB * 1024)
-#define GB (MB * 1024)
-#define Num_to_QStr(num) QString::number(num)
+#include <Utils.h>
 
 namespace fs  = boost::filesystem;
 
@@ -43,7 +39,6 @@ private:
     void readThePath(path & _path);
 private slots:
     void disk_button_clicked_handler(const path & path);
-    //MUST CHANGE
     void mainTableView_dbClicked_handler(const QModelIndex & index);
 };
 

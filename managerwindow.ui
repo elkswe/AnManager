@@ -15,6 +15,20 @@
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QGridLayout" name="gridLayout">
+    <item row="0" column="0">
+     <layout class="QHBoxLayout" name="hBoxForDisks">
+      <property name="sizeConstraint">
+       <enum>QLayout::SetNoConstraint</enum>
+      </property>
+     </layout>
+    </item>
+    <item row="2" column="0">
+     <widget class="QTableView" name="mainTableView">
+      <property name="sizeAdjustPolicy">
+       <enum>QAbstractScrollArea::AdjustIgnored</enum>
+      </property>
+     </widget>
+    </item>
     <item row="1" column="0">
      <widget class="QLabel" name="curr_path_label">
       <property name="sizePolicy">
@@ -24,16 +38,6 @@
        </sizepolicy>
       </property>
      </widget>
-    </item>
-    <item row="0" column="0">
-     <layout class="QHBoxLayout" name="hBoxForDisks">
-      <property name="sizeConstraint">
-       <enum>QLayout::SetNoConstraint</enum>
-      </property>
-     </layout>
-    </item>
-    <item row="2" column="0">
-     <widget class="QTableView" name="mainTableView"/>
     </item>
    </layout>
   </widget>

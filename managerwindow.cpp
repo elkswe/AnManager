@@ -26,14 +26,13 @@ void ManagerWindow::configureTableView()
 {
     QTableView* m_view = ui->mainTableView;
     m_view->verticalHeader()->setVisible(false);
-    m_view->horizontalHeader()->setCascadingSectionResizes(true);
-    //    m_view->horizontalHeader()->setStretchLastSection(true);
-    m_view->setColumnWidth(FileInfo::DATE, 300);
+//    m_view->horizontalHeader()->setCascadingSectionResizes(true);
+    m_view->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+//    m_view->horizontalHeader()->setStretchLastSection(true);
     m_view->setModel(m_model = new FileInfo);
     m_view->setShowGrid(true);
     m_view->setSelectionMode(QAbstractItemView::SingleSelection); //maybe multiple
     m_view->setSelectionBehavior(QAbstractItemView::SelectRows);
-    //MUST CHANGED
     connect(m_view, SIGNAL(doubleClicked(QModelIndex)),
             this, SLOT(mainTableView_dbClicked_handler(QModelIndex)));
 }
@@ -80,16 +79,13 @@ bool ManagerWindow::fillWithData(const path &_path)
 {
     boost::system::error_code ec;
     if(!exists(_path, ec)) return false;
-
-    //DEBUG
-    ui->curr_path_label->setText(
-                QString::fromStdWString(_path.wstring()));
-    ui->curr_path_label->repaint();
+    if(ec.value() != boost::system::errc::success)
+        return false;
 
     FileInfo::Files new_files;
 
     for(directory_entry entry
-        : directory_iterator(_path))
+        : directory_iterator(_path, ec))
     {
         try
         {
@@ -99,38 +95,23 @@ bool ManagerWindow::fillWithData(const path &_path)
             file[FileInfo::NAME] = QString::fromStdWString(
                         file_path.filename().wstring());
 
-            QString fileSizeStr;
+//            if(is_empty(file_path)) std::cout << file_path << " is empty\n";
+//            if(is_other(file_path)) std::cout << file_path << " is other\n";
+//            if(is_regular(file_path)) std::cout << file_path << " is regular\n";
+//            if(is_regular_file(file_path)) std::cout << file_path << " is regular file\n";
+//            if(is_symlink(file_path)) std::cout << file_path << " is symlink\n";
+//            if(is_directory(file_path)) std::cout << file_path << " is directory\n";
+
             if(is_symlink(file_path) && symbolic_link_exists(file_path))
-                file_path = read_symlink(file_path);
-            if(exists(file_path) &&
-                    !file_path.has_root_directory())
-                file_path = path(L"/") / file_path;
+               file_path = utils::extractPathFromSymlink(file_path);
 
-            if(is_directory(file_path)) fileSizeStr = "<DIR>";
-            else
-            {
-                boost::uintmax_t fileSize = file_size(file_path, ec);
-                if(fileSize != static_cast<uintmax_t>(-1))
-                {
-                    if( fileSize > GB) fileSizeStr = Num_to_QStr(fileSize / GB) + " GB";
-                    else if( fileSize > MB) fileSizeStr = Num_to_QStr(fileSize / MB) + " MB";
-                    else if( fileSize > KB) fileSizeStr = Num_to_QStr(fileSize / KB) + " KB";
-                    else fileSizeStr = Num_to_QStr(fileSize) + " B";
-                }
+            file[FileInfo::SIZE] = utils::getSize(file_path);
 
-            }
-            file[FileInfo::SIZE] = fileSizeStr;
-
-            file[FileInfo::DATE] = QString::fromStdWString(
-                        pt::to_simple_wstring(
-                            pt::from_time_t(
-                                last_write_time(entry.path())
-                                )
-                            )
-                        );
+            file[FileInfo::DATE] = utils::getLastWriteTime(file_path);
 
             new_files.append(file);
-        } catch (filesystem_error & ex){
+        }
+        catch (filesystem_error & ex){
 #ifdef DEBUG
             std::cout << ex.what() << std::endl
                       << "path1: " << ex.path1() << std::endl
@@ -143,9 +124,21 @@ bool ManagerWindow::fillWithData(const path &_path)
                                      QString::fromStdString(ex.code().message()) + "\n" +
                                      QString::fromStdWString(ex.path1().wstring()));
         }
+        catch (...)
+        {
+            QMessageBox::critical(this, "Magic", "So what did you do?");
+        }
     }
-    m_model->resetData(new_files);
-    m_model->sort();
+    if(ec.value() == boost::system::errc::success)
+    {
+        m_model->resetData(new_files);
+        m_model->sort();
+    }
+    else
+    {
+        utils::showErrorCode(_path, ec);
+        return false;
+    }
 
     if(_path != path("/"))
     {
@@ -164,18 +157,22 @@ void ManagerWindow::readThePath(path &_path)
     try
     {
         boost::system::error_code ec;
-        if(!exists(_path, ec)) return;
+        if(!exists(_path, ec))
+        {
+            QMessageBox::information(this, "Error!",
+                                     "The file does not exist.");
+            return;
+        }
 
         if(_path.filename() == L".." && _path.has_parent_path())
         {
-            path curr_dir = _path.parent_path();
-            if(exists(curr_dir) && curr_dir.has_parent_path())
+            _path = _path.parent_path();
+            if(exists(_path) && _path.has_parent_path())
             {
-                path prev_dir = curr_dir.parent_path();
+                path prev_dir = _path.parent_path();
                 if(exists(prev_dir))
                 {
-                    curr_path = prev_dir;
-                    fillWithData(curr_path);
+                    if(fillWithData(prev_dir)) curr_path = prev_dir;
                     return;
                 }
             }
@@ -211,7 +208,14 @@ void ManagerWindow::readThePath(path &_path)
         }
 
         if(is_directory(_path))
+        {
             if(fillWithData(_path)) curr_path = _path;
+            return;
+        }
+
+        if(is_other(_path))
+            QMessageBox::information(this, "Sorry",
+                                     "This file can not be opened.");
 
     } catch (filesystem_error & ex){
 #ifdef DEBUG
@@ -239,8 +243,14 @@ void ManagerWindow::mainTableView_dbClicked_handler(const QModelIndex &index)
 {
     if (!index.isValid()) return;
 
+    QModelIndex ind = ui->mainTableView->model()->index(index.row(), 0);
+
     path new_path(curr_path /
-                 index.data(Qt::DisplayRole).toString().toStdWString());
+                  ind.data(Qt::DisplayRole).toString().toStdWString());
 
     readThePath(new_path);
+
+    //CHANGE
+    ui->curr_path_label->setText(QString::fromStdWString(this->curr_path.wstring()));
+    ui->curr_path_label->repaint();
 }
