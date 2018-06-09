@@ -112,7 +112,7 @@ void utils::showErrorCode(const path & _path, const boost::system::error_code &e
 {
     QMessageBox::information(Q_NULLPTR, "Oooops",
                              QString::fromStdWString(_path.wstring()) + '\n' +
-                             QString::fromStdString(ec.message()) + '\n' +
+                             QString::fromLocal8Bit(ec.message().c_str()) + '\n' +
                              QString::fromStdString(ec.category().name()) + ':' +
                              QString::number(ec.value()));
 }
