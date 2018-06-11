@@ -1,4 +1,4 @@
-#ifndef FILEINFO_H
+﻿#ifndef FILEINFO_H
 #define FILEINFO_H
 
 #include <QAbstractTableModel>
@@ -35,7 +35,8 @@ public:
     void appendData(FileData & file);
     void resetData(Files & files);
     void prependData(FileData & file);
-    void sort();
+	void remove(const QModelIndex & index);
+    void sort(int offset = 0);
     void clear_data();
     static bool lessThan(const QHash< Column, QString> &fd1, const QHash< Column, QString> &fd2);
 
