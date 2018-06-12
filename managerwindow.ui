@@ -15,12 +15,35 @@
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0">
-     <layout class="QHBoxLayout" name="hBoxForDisks">
-      <property name="sizeConstraint">
-       <enum>QLayout::SetNoConstraint</enum>
+    <item row="3" column="0">
+     <widget class="QCheckBox" name="shwHidden">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
       </property>
-     </layout>
+      <property name="font">
+       <font>
+        <pointsize>10</pointsize>
+       </font>
+      </property>
+      <property name="layoutDirection">
+       <enum>Qt::LeftToRight</enum>
+      </property>
+      <property name="autoFillBackground">
+       <bool>false</bool>
+      </property>
+      <property name="text">
+       <string>Show hidden</string>
+      </property>
+      <property name="autoRepeat">
+       <bool>false</bool>
+      </property>
+      <property name="autoExclusive">
+       <bool>false</bool>
+      </property>
+     </widget>
     </item>
     <item row="1" column="0">
      <layout class="QHBoxLayout" name="horizontalLayout" stretch="0,0">
@@ -51,6 +74,18 @@
       </item>
       <item>
        <widget class="QLineEdit" name="cmd">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>30</width>
+          <height>0</height>
+         </size>
+        </property>
         <property name="font">
          <font>
           <family>Tahoma</family>
@@ -59,6 +94,13 @@
         </property>
        </widget>
       </item>
+     </layout>
+    </item>
+    <item row="0" column="0">
+     <layout class="QHBoxLayout" name="hBoxForDisks">
+      <property name="sizeConstraint">
+       <enum>QLayout::SetNoConstraint</enum>
+      </property>
      </layout>
     </item>
     <item row="2" column="0">

@@ -31,13 +31,11 @@ ManagerWindow::~ManagerWindow()
 void ManagerWindow::configureTableView()
 {
 	QTableView* m_view = ui->mainTableView;
-	m_view->verticalHeader()->setVisible(false);
-	//    m_view->horizontalHeader()->setCascadingSectionResizes(true);
-	m_view->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-	//    m_view->horizontalHeader()->setStretchLastSection(true);
+    m_view->verticalHeader()->setVisible(false);
+    m_view->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 	m_view->setModel(m_model = new FileInfo);
 	m_view->setShowGrid(true);
-	m_view->setSelectionMode(QAbstractItemView::SingleSelection); //maybe multiple
+    m_view->setSelectionMode(QAbstractItemView::SingleSelection); //maybe multiple
 	m_view->setSelectionBehavior(QAbstractItemView::SelectRows);
 
 	m_view->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -47,8 +45,12 @@ void ManagerWindow::configureTableView()
 
 	connect(m_view, SIGNAL(doubleClicked(QModelIndex)),
 		this, SLOT(mainTableView_dbClicked_handler(QModelIndex)));
+
 	connect(ui->cmd, SIGNAL(returnPressed()),
 		this, SLOT(cmd_returnPressed_handler()));
+
+    connect(ui->shwHidden, SIGNAL(stateChanged(int)),
+            this, SLOT(slotChngHiddenState(int)));
 }
 //NEED CHECKING
 void ManagerWindow::mountSections()
@@ -150,11 +152,22 @@ bool ManagerWindow::fillWithData(const path &_path)
 		: directory_iterator(_path, ec))
 	{
 		try
-		{
-			path file_path = entry.path();
-			FileInfo::FileData file = fillFileData(file_path);
-			new_files.append(file);
-		}
+        {
+#ifdef _WIN32 | _WIN64
+            if (!(FILE_ATTRIBUTE_HIDDEN & GetFileAttributesW(entry.path().c_str()))
+                    || this->fHidden)
+#elif __linux__
+            if ((entry.path().filename().wstring()[0] != L'.'
+                 && !entry.path().filename_is_dot_dot()
+                 && entry.path().filename() != path(L"./"))
+                    || this->fHidden)
+#endif
+            {
+                path file_path = entry.path();
+                FileInfo::FileData file = fillFileData(file_path);
+                new_files.append(file);
+            }
+        }
 		catch (filesystem_error & ex) {
 #ifdef MDEBUG
 			std::cout << ex.what() << std::endl
@@ -275,11 +288,12 @@ void ManagerWindow::readThePath(path &_path)
 #elif _WIN32 | _WIN64
 			if (IsDirectoryJunction(_path.c_str()))
 			{
-				LPTSTR dest = new TCHAR[32767];
-				GetJunctionDestination(_path.c_str(), dest);
-				path sym_path(dest);
-				if (!sym_path.empty() && exists(sym_path))
-					readThePath(sym_path);
+                LPTSTR dest = new TCHAR[32767];
+                if (GetJunctionDestination(_path.c_str(), dest))
+                {
+                    path sym_path(dest);
+                    readThePath(sym_path);
+                }
 				else
 					QMessageBox::information(this, "Ooops", "The link (junction) is incorrect.");
 			}
@@ -324,12 +338,12 @@ void ManagerWindow::deleteFile(const path & path, const QModelIndex & index, int
 
 	if (is_regular_file(path) || is_symlink(path))
 	{
-		if (ask) res = QMessageBox::information(this,
+        if (ask) res = QMessageBox::information(0,
 			"Deleting",
 			"Delete the selected file " +
 			QString::fromStdWString(path.filename().wstring()) + " ?",
 			QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
-		else res = QMessageBox::Yes;
+        else res = QMessageBox::Yes;
 
 		if (res == QMessageBox::Yes)
 		{
@@ -353,8 +367,8 @@ void ManagerWindow::deleteFile(const path & path, const QModelIndex & index, int
 			}
 #endif
 			fs::remove(path, ec);
-			if (ec.value() == boost::system::errc::success)
-				m_model->remove(index);
+            if (ec.value() == boost::system::errc::success && index.isValid())
+            {if(curr_path == path.parent_path()) m_model->remove(index);}
 			else
 				utils::showErrorCode(path, ec);
 		}
@@ -363,22 +377,22 @@ void ManagerWindow::deleteFile(const path & path, const QModelIndex & index, int
 
 	if (is_directory(path))
 	{
-		if (ask) res = QMessageBox::information(this,
+        if (ask) res = QMessageBox::information(0,
 			"Deleting",
 			"Delete the selected directory " +
 			QString::fromStdWString(path.filename().wstring()) + " ?",
-			QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
-		else ask = QMessageBox::Yes;
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+        else res = QMessageBox::Yes;
 
 		if (res == QMessageBox::Yes)
 		{
 			fs::remove_all(path, ec);
-			if (ec.value() == boost::system::errc::success)
-				m_model->remove(index);
-			else
+            if (ec.value() == boost::system::errc::success && index.isValid())
+            {if(curr_path == path.parent_path()) m_model->remove(index);}
+            else
 				utils::showErrorCode(path, ec);
 		}
-		return;
+        return;
 	}
 }
 
@@ -400,289 +414,28 @@ void ManagerWindow::createFileWithExtension(const char *ext)
 
 		if (exists(file_path, ec)) return;
 
-		std::wofstream wofs(file_path.wstring());
+        std::wofstream wofs(file_path.string());
 		if (!wofs.is_open())
 			QMessageBox::information(this, "Error", "File is not created.");
 		wofs.close();
 		last_write_time(file_path, pt::to_time_t(pt::second_clock::local_time()));
-		m_model->appendData(fillFileData(file_path));
+        FileInfo::FileData file = fillFileData(file_path);
+        m_model->appendData(file);
 		m_model->sort(
 			curr_path == curr_path.root_path()
 			? 0
 			: 1);
-	}
+    }
 }
 
-//SLOTS
-void ManagerWindow::disk_button_clicked_handler(const path &_path)
+bool ManagerWindow::copyFromTo(path from, path to)
 {
-	this->curr_path = _path;
-	fillWithData(_path);
-
-	//CHANGE
-	ui->curr_path_label->setText(QString::fromStdWString(this->curr_path.wstring()));
-	ui->curr_path_label->repaint();
-}
-
-void ManagerWindow::mainTableView_dbClicked_handler(const QModelIndex &index)
-{
-	if (!index.isValid()) return;
-
-	QModelIndex ind = ui->mainTableView->model()->index(index.row(), 0);
-
-	path new_path(curr_path /
-		ind.data(Qt::DisplayRole).toString().toStdWString());
-
-	readThePath(new_path);
-
-	//CHANGE
-	ui->curr_path_label->setText(QString::fromStdWString(this->curr_path.wstring()));
-	ui->curr_path_label->repaint();
-}
-//ADD RUNNING ON NEW THREAD
-void ManagerWindow::cmd_returnPressed_handler()
-{
-#ifdef _WIN32 | _ WIN64
-	ui->cmd->selectAll();
-	QString cmd('\"');
-	cmd += this->curr_path.root_name().string().c_str();
-	cmd += " &&";
-	cmd += " cd ";
-	cmd += this->curr_path.string().c_str();
-	if (!ui->cmd->text().isEmpty())
-	{
-		cmd += " && ";
-		cmd += ui->cmd->text();
-	}
-	cmd += '\"';
-	system(cmd.toLocal8Bit());
-#endif
-}
-
-void ManagerWindow::slotCustomMenuRequested(QPoint pos)
-{
-	QMenu *menu = new QMenu(this);
-
-	QAction *renameFile = new QAction("Rename", this);
-	QAction *copyFile = new QAction("Copy", this);
-	QAction *cutFile = new QAction("Cut", this);
-	QAction *pasteFile = new QAction("Paste", this);
-	QAction *deleteFile = new QAction("Delete", this);
-	QAction *newSmth = new QAction("New", this);
-	//New sub menu
-	QMenu *newSubMenu = new QMenu(menu);
-	QAction *createDir = new QAction("Folder", this);
-	QAction *createTxtFile = new QAction("Text document (.txt)", this);
-	QAction *createDocxFile = new QAction("Microsoft Word Document (.docx)", this);
-
-	connect(renameFile, SIGNAL(triggered()),
-		this, SLOT(slotRenameFile()));
-	connect(copyFile, SIGNAL(triggered()),
-		this, SLOT(slotCopyFile()));
-	connect(cutFile, SIGNAL(triggered()),
-		this, SLOT(slotCutFile()));
-	connect(pasteFile, SIGNAL(triggered()),
-		this, SLOT(slotPasteFile()));
-	connect(deleteFile, SIGNAL(triggered()),
-		this, SLOT(slotDeleteFile()));
-
-	//New sub menu
-	newSubMenu->addAction(createDir);
-	newSubMenu->addAction(createTxtFile);
-	newSubMenu->addAction(createDocxFile);
-
-	connect(createDir, SIGNAL(triggered()),
-		this, SLOT(slotCreateDir()));
-	connect(createTxtFile, SIGNAL(triggered()),
-		this, SLOT(slotCreateTxtFile()));
-	connect(createDocxFile, SIGNAL(triggered()),
-		this, SLOT(slotCreateDocxFile()));
-
-	newSmth->setMenu(newSubMenu);
-
-	menu->addAction(renameFile);
-	menu->addAction(copyFile);
-	menu->addAction(cutFile);
-	menu->addAction(pasteFile);
-	menu->addAction(deleteFile);
-	menu->addSeparator();
-	menu->addAction(newSmth);
-
-	menu->popup(ui->mainTableView->viewport()->mapToGlobal(pos));
-}
-
-void ManagerWindow::slotRenameFile()
-{
-	QModelIndex index = ui->mainTableView->selectionModel()->currentIndex();
-	if (!index.isValid()) return;
-	QModelIndex ind = ui->mainTableView->model()->index(index.row(), 0);
-	path old_path(curr_path /
-		ind.data(Qt::DisplayRole).toString().toStdWString());
-
-	bool bOK;
-	QString new_name = QInputDialog::getText(
-		this, "Renaming",
-		"New name:", QLineEdit::Normal,
-		QString::fromStdWString(old_path.filename().wstring()),
-		&bOK);
-
-	if (bOK)
-	{
-		path new_path(curr_path /
-			new_name.toStdWString());
-		boost::system::error_code ec;
-		fs::rename(old_path, new_path, ec);
-		if (ec.value() == boost::system::errc::success)
-			m_model->setData(ind, QString::fromStdWString(new_path.filename().wstring()), Qt::EditRole);
-		else
-			utils::showErrorCode(old_path, ec);
-	}
-}
-
-void ManagerWindow::slotCopyFile()
-{
-	QModelIndex index = ui->mainTableView->selectionModel()->currentIndex();
-	if (!index.isValid()) return;
-	QModelIndex ind = ui->mainTableView->model()->index(index.row(), 0);
-	path path(curr_path /
-		ind.data(Qt::DisplayRole).toString().toStdWString());
-	fOps.from = path;
-	fOps.op = COPY;
-}
-
-void ManagerWindow::slotCutFile()
-{
-	QModelIndex index = ui->mainTableView->selectionModel()->currentIndex();
-	if (!index.isValid()) return;
-	QModelIndex ind = ui->mainTableView->model()->index(index.row(), 0);
-	path path(curr_path /
-		ind.data(Qt::DisplayRole).toString().toStdWString());
-	fOps.from = path;
-	fOps.op = CUT;
-	fOps.index = index;
-}
-
-void ManagerWindow::slotPasteFile()
-{
-	if (fOps.op == NULL || this->fOps.from.empty()) return;
-	path to(curr_path / fOps.from.filename());
-
-	boost::system::error_code ec;
-	if (!exists(fOps.from, ec))
-	{
-		QMessageBox::information(this, "Ooops", "The file does not exist.");
-		return;
-	}
-
-	if (ec.value() != boost::system::errc::success)
-	{
-		utils::showErrorCode(to, ec);
-		return;
-	}
-	ec.clear();
-
-	switch (fOps.op)
-	{
-	case COPY:
-	{
-		fs::copy(fOps.from, to, ec);
-		if (ec.value() == boost::system::errc::success)
-		{
-			m_model->appendData(fillFileData(to));
-			m_model->sort(
-				curr_path == curr_path.root_path()
-				? 0
-				: 1);
-		}
-		else
-			utils::showErrorCode(fOps.from, ec);
-		break;
-	}
-	case CUT:
-	{
-		if (!fOps.index.isValid()) break;
-		fs::copy(fOps.from, to, ec);
-		if (ec.value() == boost::system::errc::success)
-		{
-			m_model->appendData(fillFileData(to));
-			m_model->sort(
-				curr_path == curr_path.root_path()
-				? 0
-				: 1);
-			deleteFile(fOps.from, fOps.index, 0);
-		}
-		else
-			utils::showErrorCode(fOps.from, ec);
-
-		fOps.from = path();
-		fOps.index = QModelIndex();
-		fOps.op = NULL;
-
-		break;
-	}
-	default:
-		break;
-	}
-}
-
-void ManagerWindow::slotDeleteFile()
-{
-	QModelIndex index = ui->mainTableView->selectionModel()->currentIndex();
-	if (!index.isValid()) return;
-
-	QModelIndex ind = ui->mainTableView->model()->index(index.row(), 0);
-	path path(curr_path /
-		ind.data(Qt::DisplayRole).toString().toStdWString());
-
-	boost::system::error_code ec;
-
-	if (!exists(path, ec))
-		QMessageBox::information(this, "Ooops", "The file does not exist.");
-
-	if (ec.value() != boost::system::errc::success)
-	{
-		utils::showErrorCode(path, ec);
-		return;
-	}
-
-	deleteFile(path, index);
-}
-
-void ManagerWindow::slotCreateDir()
-{
-	bool bOK;
-	QString new_name = QInputDialog::getText(
-		this, "New folder",
-		"Name:", QLineEdit::Normal,
-		"New folder",
-		&bOK);
-
-	if (bOK)
-	{
-		path dir_path(curr_path /
-			new_name.toStdWString());
-		boost::system::error_code ec;
-		fs::create_directory(dir_path, ec);
-		if (ec.value() == boost::system::errc::success)
-		{
-			last_write_time(dir_path, pt::to_time_t(pt::second_clock::local_time()));
-			m_model->appendData(fillFileData(dir_path));
-			m_model->sort(
-				curr_path == curr_path.root_path()
-				? 0
-				: 1);
-		}
-		else
-			utils::showErrorCode(dir_path, ec);
-	}
-}
-
-void ManagerWindow::slotCreateTxtFile()
-{
-	createFileWithExtension(".txt");
-}
-
-void ManagerWindow::slotCreateDocxFile()
-{
-	createFileWithExtension(".docx");
+    boost::system::error_code ec;
+    fs::copy(from, to, ec);
+    if(ec.value() != boost::system::errc::success) return false;
+    if(!is_symlink(from) && is_directory(from))
+        for(directory_entry entry
+            : directory_iterator(from))
+            copyFromTo(entry.path(), to / entry.path().filename());
+    return true;
 }

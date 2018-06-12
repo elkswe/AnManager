@@ -2,6 +2,8 @@
 #define MANAGERWINDOW_H
 
 #include "ui_managerwindow.h"
+#include <boost/filesystem.hpp>
+#include <boost/thread.hpp>
 #include <QMainWindow>
 #include <QMessageBox>
 #include <QString>
@@ -16,10 +18,10 @@
 #include <JunctionPoint.h>
 #include <Windows.h>
 #include <shellapi.h>
+using namespace neosmart;
 #endif
 
 namespace fs  = boost::filesystem;
-using namespace neosmart;
 
 struct FileOps{
 	path from;
@@ -49,6 +51,7 @@ private:
 	path curr_path;
 	QVector<DiskButton*> sections;
 	FileOps fOps;
+    bool fHidden = false;
 
 	enum Operations {
 		COPY = 1,
@@ -64,21 +67,25 @@ private:
 	void readThePath(path & _path);
 	void deleteFile(const path & path, const QModelIndex & index, int ask = 1);
 	void createFileWithExtension(const char *ext);
+    bool copyFromTo(path from, path to);
 
 private slots:
     void disk_button_clicked_handler(const path & path);
     void mainTableView_dbClicked_handler(const QModelIndex & index);
 	void cmd_returnPressed_handler();
+    void run_cmd();
 	//Context menu
 	void slotCustomMenuRequested(QPoint pos);
 	void slotRenameFile();
 	void slotCopyFile();
 	void slotCutFile();
 	void slotPasteFile();
+    void doPaste();
 	void slotDeleteFile();
 	void slotCreateDir();
 	void slotCreateTxtFile();
 	void slotCreateDocxFile();
+    void slotChngHiddenState(int state);
 };
 
 #endif // MANAGERWINDOW_H
